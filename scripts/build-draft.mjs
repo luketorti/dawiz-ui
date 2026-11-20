@@ -19,12 +19,17 @@ const n = rosters.length; // owners; array order = round-1 pick order
 
 const [y, m] = new Date().toISOString().slice(0, 7).split("-").map(Number);
 const start = m >= 9 ? y : y - 1;
-const bulk = await (
-  await fetch(
-    `https://api.nhle.com/stats/rest/en/skater/summary?limit=-1&cayenneExp=${encodeURIComponent(`seasonId=${start}${start + 1} and gameTypeId=2`)}`
-  )
-).json();
-const team = new Map(bulk.data.map((p) => [p.playerId, p.teamAbbrevs.split(",").pop().trim()]));
+const bulkData = [];
+for (let pageStart = 0; ; pageStart += 100) {
+  const bulk = await (
+    await fetch(
+      `https://api.nhle.com/stats/rest/en/skater/summary?limit=100&start=${pageStart}&cayenneExp=${encodeURIComponent(`seasonId=${start}${start + 1} and gameTypeId=2`)}`
+    )
+  ).json();
+  bulkData.push(...(bulk.data ?? []));
+  if (bulkData.length >= (bulk.total ?? bulkData.length) || (bulk.data?.length ?? 0) < 100) break;
+}
+const team = new Map(bulkData.map((p) => [p.playerId, p.teamAbbrevs.split(",").pop().trim()]));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const picks = [];

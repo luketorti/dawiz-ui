@@ -30,6 +30,8 @@ Round money: in each draft round, the active players with at least 1 point are r
 
 - `public/` is the frontend: `index.html` (standings), `overnight.html` (everyone who scored last night, with their pool owner), `team.html` (one owner's roster, wide screens) and `draft.html` (recap of the draft, read from the static `draft.json`), sharing `style.css` and `common.js`. No framework or build step.
 - `netlify/functions/standings.mjs` and `overnight.mjs` are Netlify functions (shared helpers in `netlify/lib/nhl.mjs`). On each page load they pull stats, last night's games and today's schedule from the public NHL API and return JSON; `standings` totals each owner's active players, `overnight` lists last night's scorers and who owns them. (The NHL API can't be called straight from a browser, which is why the function exists.)
+- NHL skater-stat calls use `getStats()` in `netlify/lib/nhl.mjs`, not a single `limit=-1` request. The NHL stats REST endpoint can cap even `limit=-1` requests at 100 rows. `getStats()` requests 100-row pages with `start`, combines them until the API's `total` is reached, and preserves optional parameters such as `isAggregate=true`. The build scripts also paginate because roster and draft lookups use the same bulk stats endpoint.
+- `getJson()` retries NHL API and ESPN requests with HTTP 429 or 500/502/503/504 responses up to three times with short backoff. This helps with bursts and transient failures, but it does not replace complete paginated data.
 - `data/` holds the two spreadsheets you edit by hand. `data/teamFeed.csv` is the source of truth for who owns whom. `data/bibleFeed.csv` lists every player with their draft price and position, and is the source of truth for both. A drafted player listed at $0.00 is a "freebie" priced by draft position: (owners × 16 + 1 − pick) / 100.
 - `scripts/build-bible.mjs` turns the bible into `netlify/lib/bible.json`; `scripts/build-rosters.mjs` turns `data/teamFeed.csv` into `netlify/functions/rosters.json`, using bible positions.
 - `server.mjs` is a local stand-in for Netlify, for testing only.
@@ -103,6 +105,7 @@ Auto-publish is turned off. Pushing to GitHub does not change the live site; pub
 
 ## Known behavior
 
+- **NHL stats pagination.** The skater-summary endpoint has a 100-row page limit, even when callers use `limit=-1`. All Netlify functions and build scripts that need season or date-range skater totals must paginate with `limit=100&start=N`. Do not replace `getStats()` or restore a single `limit=-1` request for these calls: otherwise rostered players on later pages will appear to have 0 GP, G, A and TP. `gameLines()` and aggregate stats calls use the same pagination helper.
 - **Standings are live.** Season totals come straight from the NHL stats, so a point appears shortly after a game ends, including games finished earlier today. "Last Night" is only the previous day's games (Eastern time), so TP minus Last Night is not strictly "yesterday's standings" until the day rolls over. This was considered and deliberately left as is.
 - **No auto-refresh.** Each page fetches its data once when opened; reload to update. A tab left open from before a deploy keeps running the old code until reloaded.
 - **"Playing Tonight" / game pills** use the NHL schedule for today (Eastern date) and count every game today, played or not. Postponed games are ignored.

@@ -41,15 +41,10 @@ async function getJson(url) {
 // 1. One bulk call covers everyone who has played this season.
 const [y, m] = new Date().toISOString().slice(0, 7).split("-").map(Number);
 const season = `${m >= 9 ? y : y - 1}${(m >= 9 ? y : y - 1) + 1}`;
-const bulkData = [];
-for (let start = 0; ; start += 100) {
-  const bulk = await getJson(
-    `https://api.nhle.com/stats/rest/en/skater/summary?limit=100&start=${start}&cayenneExp=${encodeURIComponent(`seasonId=${season} and gameTypeId=2`)}`
-  );
-  bulkData.push(...(bulk.data ?? []));
-  if (bulkData.length >= (bulk.total ?? bulkData.length) || (bulk.data?.length ?? 0) < 100) break;
-}
-for (const p of bulkData) info.set(p.playerId, { name: p.skaterFullName, pos: p.positionCode });
+const bulk = await getJson(
+  `https://api.nhle.com/stats/rest/en/skater/summary?limit=-1&cayenneExp=${encodeURIComponent(`seasonId=${season} and gameTypeId=2`)}`
+);
+for (const p of bulk?.data ?? []) info.set(p.playerId, { name: p.skaterFullName, pos: p.positionCode });
 
 // 2. Anyone missing (no games yet this season) is looked up individually.
 for (const id of ids.filter((id) => !info.has(id))) {
